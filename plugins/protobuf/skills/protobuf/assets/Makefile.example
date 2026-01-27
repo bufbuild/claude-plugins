@@ -1,0 +1,18 @@
+.PHONY: all lint format generate breaking deps
+
+all: format lint generate
+
+lint:
+	buf lint
+
+format:
+	buf format -w
+
+generate:
+	buf generate
+
+breaking:
+	buf breaking --against '.git#branch=main'
+
+deps:
+	buf dep update

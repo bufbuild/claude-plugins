@@ -1,0 +1,15 @@
+# buf.gen.ts.yaml - TypeScript with Connect code generation
+# Documentation: https://buf.build/docs/configuration/v2/buf-gen-yaml
+
+version: v2
+
+plugins:
+  - remote: buf.build/bufbuild/es
+    out: gen
+    opt:
+      - target=ts
+
+  - remote: buf.build/connectrpc/es
+    out: gen
+    opt:
+      - target=ts

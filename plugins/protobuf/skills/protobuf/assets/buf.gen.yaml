@@ -1,0 +1,36 @@
+# buf.gen.yaml - Buf code generation configuration
+# Documentation: https://buf.build/docs/configuration/v2/buf-gen-yaml
+
+version: v2
+
+# Managed mode: centralizes package naming, keeps .proto files language-agnostic
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/yourorg/yourrepo/gen
+    - file_option: java_package_prefix
+      value: com.yourorg.yourrepo
+
+plugins:
+  # Go
+  - remote: buf.build/protocolbuffers/go
+    out: gen
+    opt:
+      - paths=source_relative
+
+  # Go gRPC
+  - remote: buf.build/grpc/go
+    out: gen
+    opt:
+      - paths=source_relative
+
+  # TypeScript (uncomment if needed)
+  # - remote: buf.build/connectrpc/es
+  #   out: gen/ts
+  #   opt:
+  #     - target=ts
+
+  # Python (uncomment if needed)
+  # - remote: buf.build/protocolbuffers/python
+  #   out: gen/python

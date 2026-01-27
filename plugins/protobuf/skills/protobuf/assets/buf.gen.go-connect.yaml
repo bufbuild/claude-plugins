@@ -1,0 +1,23 @@
+# buf.gen.go-connect.yaml - Go with Connect code generation
+# Documentation: https://buf.build/docs/configuration/v2/buf-gen-yaml
+
+version: v2
+clean: true
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/yourorg/yourrepo/gen
+  disable:
+    - module: buf.build/bufbuild/protovalidate
+      file_option: go_package_prefix
+plugins:
+  - remote: buf.build/protocolbuffers/go
+    out: gen
+    opt:
+      - paths=source_relative
+      - default_api_level=API_OPAQUE
+  - remote: buf.build/connectrpc/go
+    out: gen
+    opt:
+      - paths=source_relative

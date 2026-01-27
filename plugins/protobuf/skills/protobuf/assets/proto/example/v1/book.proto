@@ -1,0 +1,67 @@
+// Book entity and related types.
+//
+// This file contains the Book entity and supporting types, separate from the
+// service definition to allow reuse across multiple services.
+
+syntax = "proto3";
+
+package example.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+// Book represents a book in the library catalog.
+message Book {
+  // Unique identifier for the book.
+  string id = 1 [(buf.validate.field).string.uuid = true];
+
+  // Title of the book.
+  string title = 2 [(buf.validate.field).string.min_len = 1];
+
+  // ISBN-13 identifier.
+  string isbn = 3 [(buf.validate.field).string.pattern = "^(97[89])?\\d{9}(\\d|X)$"];
+
+  // Reference to the author.
+  string author_id = 4 [(buf.validate.field).string.uuid = true];
+
+  // Publication year.
+  int32 publication_year = 5 [(buf.validate.field).int32 = {
+    gte: 1450
+    lte: 2100
+  }];
+
+  // Genre classifications.
+  repeated Genre genre = 6 [
+    (buf.validate.field).repeated.items.enum.defined_only = true,
+    (buf.validate.field).repeated.items.enum.not_in = 0
+  ];
+
+  // When the book was added to the catalog.
+  google.protobuf.Timestamp create_time = 7 [(buf.validate.field).required = true];
+
+  // When the book was last updated.
+  google.protobuf.Timestamp update_time = 8;
+}
+
+// BookRef identifies a book by ID or ISBN.
+message BookRef {
+  oneof ref {
+    option (buf.validate.oneof).required = true;
+
+    // Unique identifier for the book.
+    string id = 1 [(buf.validate.field).string.uuid = true];
+
+    // ISBN-13 identifier.
+    string isbn = 2 [(buf.validate.field).string.pattern = "^(97[89])?\\d{9}(\\d|X)$"];
+  }
+}
+
+// Genre classification for books.
+enum Genre {
+  GENRE_UNSPECIFIED = 0;
+  GENRE_FICTION = 1;
+  GENRE_NON_FICTION = 2;
+  GENRE_SCIENCE_FICTION = 3;
+  GENRE_MYSTERY = 4;
+  GENRE_BIOGRAPHY = 5;
+}

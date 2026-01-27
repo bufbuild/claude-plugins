@@ -1,0 +1,21 @@
+{
+  "name": "protobuf",
+  "description": "Protocol Buffers development with Buf toolchain. Use when working with .proto files, buf.yaml, buf.gen.yaml, gRPC services, Connect APIs, or protovalidate constraints.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Buf Technologies, Inc.",
+    "email": "support@buf.build"
+  },
+  "repository": "https://github.com/bufbuild/claude-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "protobuf",
+    "proto",
+    "grpc",
+    "connect",
+    "buf",
+    "protovalidate",
+    "api"
+  ],
+  "skills": "./skills"
+}

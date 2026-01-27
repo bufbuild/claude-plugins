@@ -1,0 +1,17 @@
+{
+  "name": "buf-plugins",
+  "metadata": {
+    "description": "Official Claude Code plugins from Buf for Protocol Buffers, Connect, and BSR development.",
+    "version": "1.0.0"
+  },
+  "owner": {
+    "name": "Buf Technologies, Inc.",
+    "email": "support@buf.build"
+  },
+  "plugins": [
+    {
+      "name": "protobuf",
+      "source": "./plugins/protobuf"
+    }
+  ]
+}

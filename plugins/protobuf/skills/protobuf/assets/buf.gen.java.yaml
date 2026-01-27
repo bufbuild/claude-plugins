@@ -1,0 +1,19 @@
+# buf.gen.java.yaml - Java with gRPC code generation
+# Documentation: https://buf.build/docs/configuration/v2/buf-gen-yaml
+
+version: v2
+
+managed:
+  enabled: true
+  override:
+    - file_option: java_package_prefix
+      value: com.yourorg.yourrepo
+    - file_option: java_multiple_files
+      value: true
+
+plugins:
+  - remote: buf.build/protocolbuffers/java
+    out: gen
+
+  - remote: buf.build/grpc/java
+    out: gen
