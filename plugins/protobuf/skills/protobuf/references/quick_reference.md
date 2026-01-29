@@ -176,3 +176,5 @@ Avoid these in package names (cause issues in specific languages):
 | `type` | TypeScript |
 | `import` | Multiple |
 | `package` | Multiple |
+
+For Java, package names should avoid [JLS reserved keywords](https://docs.oracle.com/javase/specs/jls/se21/html/jls-3.html#jls-ReservedKeyword).
