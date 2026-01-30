@@ -17,5 +17,14 @@
     "protovalidate",
     "api"
   ],
-  "skills": "./skills"
+  "skills": "./skills",
+  "lspServers": {
+    "protobuf": {
+      "command": "buf",
+      "args": ["lsp", "serve"],
+      "extensionToLanguage": {
+        ".proto": "protobuf"
+      }
+    }
+  }
 }
