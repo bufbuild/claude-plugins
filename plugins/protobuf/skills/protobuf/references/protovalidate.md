@@ -1,6 +1,7 @@
 # Protovalidate Reference
 
-Semantic validation for Protocol Buffers using annotations and CEL.
+Protovalidate declares validation constraints directly in `.proto` files, making the schema the single source of truth for both structure and validation.
+Rules are field annotations enforced at runtime via generated code and CEL expressions.
 
 **Documentation:** [protovalidate.com](https://protovalidate.com)
 
@@ -9,6 +10,7 @@ Semantic validation for Protocol Buffers using annotations and CEL.
 - [Setup](#setup)
 - [Core Concepts](#core-concepts)
 - [String Rules](#string-rules)
+- [Common String Patterns](#common-string-patterns)
 - [Numeric Rules](#numeric-rules)
 - [Bytes Rules](#bytes-rules)
 - [Enum Rules](#enum-rules)
@@ -110,6 +112,19 @@ message Example {
 }
 ```
 
+## Common String Patterns
+
+Prefer well-known format validators (`uuid`, `email`, `uri`, `hostname`, `ip`, `address`, `host_and_port`) before reaching for `pattern`.
+When no well-known constraint fits, use `pattern` for name/identifier fields:
+
+| Field Type | Pattern |
+|-----------|---------|
+| Lowercase with hyphens | `^[a-z0-9][a-z0-9-]*[a-z0-9]$` |
+| Versioned label | `^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$` |
+| Programming identifier | `^[_a-zA-Z][_a-zA-Z0-9]*$` |
+
+Consider adding `min_len` and `max_len` constraints where appropriate.
+
 ## Numeric Rules
 
 All numeric types (`int32`, `int64`, `uint32`, `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`, `sfixed64`, `float`, `double`) support:
@@ -178,8 +193,11 @@ enum Status {
 }
 
 message Resource {
-  // Must be a defined value (rejects unknown values)
-  Status status = 1 [(buf.validate.field).enum.defined_only = true];
+  // Must be a defined, non-UNSPECIFIED value
+  Status status = 1 [
+    (buf.validate.field).enum.not_in = 0,
+    (buf.validate.field).enum.defined_only = true
+  ];
 
   // Specific allowed values
   Status allowed = 2 [(buf.validate.field).enum = {in: [1, 2]}];
@@ -191,6 +209,16 @@ message Resource {
   Status required_status = 4 [(buf.validate.field).enum.const = 1];
 }
 ```
+
+### Enum Validation Patterns
+
+| Context | Constraints |
+|---------|-------------|
+| Required enum | `not_in = 0` + `defined_only = true` |
+| Optional enum (zero = "not set") | `defined_only = true` only |
+| Repeated enum items | `.repeated.items.enum.not_in = 0` + `.items.enum.defined_only = true` |
+
+Required fields need both: `defined_only` alone allows `UNSPECIFIED` through, `not_in = 0` alone allows unknown values through.
 
 ## Repeated Field Rules
 
@@ -236,12 +264,13 @@ message Config {
 
 ## Oneof Rules
 
-```protobuf
-message Query {
-  oneof filter {
-    // Require exactly one field to be set
-    option (buf.validate.oneof).required = true;
+Use `(buf.validate.oneof).required = true` when the oneof represents a required choice (lookups, mutually exclusive options).
+Omit `required` only when the oneof is intentionally optional.
 
+```protobuf
+message UserLookup {
+  oneof value {
+    option (buf.validate.oneof).required = true;
     string id = 1 [(buf.validate.field).string.uuid = true];
     string email = 2 [(buf.validate.field).string.email = true];
   }
@@ -380,8 +409,6 @@ message SearchFilters {
 
 ## CEL Extension Functions
 
-Protovalidate adds these functions beyond standard CEL:
-
 | Function | Description |
 |----------|-------------|
 | `isNan()`, `isInf()` | Test for NaN or infinity |
@@ -416,39 +443,12 @@ message ListRequest {
 }
 ```
 
-### Create Request
+See `assets/proto/example/v1/book_service.proto` for a complete List example with response, ordering, and filtering.
 
-```protobuf
-message CreateUsersRequest {
-  message Value {
-    string email = 1 [
-      (buf.validate.field).required = true,
-      (buf.validate.field).string.email = true
-    ];
-    string name = 2 [
-      (buf.validate.field).required = true,
-      (buf.validate.field).string.min_len = 1
-    ];
-  }
+### Cross-Reference Consistency
 
-  repeated Value values = 1 [
-    (buf.validate.field).repeated.min_items = 1,
-    (buf.validate.field).repeated.max_items = 250
-  ];
-}
-```
-
-### Update Request with Optional Fields
-
-```protobuf
-message UpdateUserRequest {
-  UserRef user_ref = 1 [(buf.validate.field).required = true];
-
-  // Optional fields validate only when set
-  optional string name = 2 [(buf.validate.field).string.min_len = 1];
-  optional string bio = 3 [(buf.validate.field).string.max_len = 500];
-}
-```
+When the same identifier appears in multiple messages, all validation constraints must be identical.
+See [best_practices.md](best_practices.md#cross-reference-consistency) for details and examples.
 
 ## Predefined Constraint Rules
 
@@ -474,7 +474,8 @@ For parameterized rules and more examples, see [protovalidate.com](https://proto
 
 ## Runtime Validation
 
-Protovalidate requires explicit validation calls in your application code.
+Protovalidate annotations define constraints in the schema, but enforcement happens at runtime.
+Add validation calls at your service boundaries—typically in RPC handlers or middleware.
 
 **Go:**
 ```go

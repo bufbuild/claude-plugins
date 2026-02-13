@@ -41,39 +41,48 @@ message GetBookResponse {
 }
 
 message ListBooksRequest {
-  // Maximum number of books to return. Default is 20, max is 100.
-  int32 page_size = 1 [(buf.validate.field).int32 = {
-    gte: 0
-    lte: 100
-  }];
+  // The list order.
+  enum Order {
+    ORDER_UNSPECIFIED = 0;
+    // Order by create_time newest to oldest.
+    ORDER_CREATE_TIME_DESC = 1;
+    // Order by create_time oldest to newest.
+    ORDER_CREATE_TIME_ASC = 2;
+    // Order by update_time newest to oldest.
+    ORDER_UPDATE_TIME_DESC = 3;
+    // Order by update_time oldest to newest.
+    ORDER_UPDATE_TIME_ASC = 4;
+  }
 
-  // Token for pagination. Empty for first page.
-  string page_token = 2;
+  // The maximum number of items to return.
+  //
+  // The default value is 20.
+  uint32 page_size = 1 [(buf.validate.field).uint32.lte = 100];
+
+  // The page to start from.
+  //
+  // If empty, the first page is returned.
+  string page_token = 2 [(buf.validate.field).string.max_len = 4096];
 
   // Filter by genre.
+  //
+  // If not specified, all genres are returned.
   Genre genre = 3 [(buf.validate.field).enum.defined_only = true];
 
-  // Order results by field.
-  OrderBy order_by = 4 [(buf.validate.field).enum.defined_only = true];
-
-  // Ordering options.
-  enum OrderBy {
-    ORDER_BY_UNSPECIFIED = 0;
-    ORDER_BY_TITLE_ASC = 1;
-    ORDER_BY_TITLE_DESC = 2;
-    ORDER_BY_PUBLICATION_YEAR_ASC = 3;
-    ORDER_BY_PUBLICATION_YEAR_DESC = 4;
-    ORDER_BY_CREATE_TIME_ASC = 5;
-    ORDER_BY_CREATE_TIME_DESC = 6;
-  }
+  // The order to return results.
+  //
+  // If not specified, defaults to ORDER_CREATE_TIME_DESC.
+  Order order = 4 [(buf.validate.field).enum.defined_only = true];
 }
 
 message ListBooksResponse {
-  // Books in this page.
-  repeated Book books = 1;
+  // The next page token.
+  //
+  // If empty, there are no more pages.
+  string next_page_token = 1 [(buf.validate.field).string.max_len = 4096];
 
-  // Token for the next page. Empty if no more results.
-  string next_page_token = 2;
+  // The books.
+  repeated Book books = 2 [(buf.validate.field).repeated.max_items = 100];
 }
 
 message CreateBookRequest {

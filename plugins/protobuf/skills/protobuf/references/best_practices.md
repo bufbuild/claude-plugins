@@ -3,6 +3,8 @@
 Universal best practices for designing `.proto` files.
 For buf CLI configuration, see [buf_toolchain.md](buf_toolchain.md).
 
+**Validation:** Use [protovalidate](protovalidate.md) on every field—it makes the schema the single source of truth for both structure and constraints.
+
 ## Contents
 
 - [File Structure](#file-structure)
@@ -76,6 +78,7 @@ package acme.user.v1;
 - Use `snake_case`: `user_id`, `created_at`
 - Avoid abbreviations: `message` not `msg`
 - Pluralize repeated fields: `repeated User users`
+- Add [protovalidate](protovalidate.md) constraints to every field—format validators, length/range bounds, enum constraints, and required markers are all part of the field definition
 
 ### Nesting
 
@@ -183,14 +186,18 @@ Avoid grouping comments above multiple values; comments only attach to the first
 
 ### Required Enum Fields
 
-For enum fields that must have a meaningful value (not UNSPECIFIED), use both constraints:
+For enum fields that must have a meaningful value (not UNSPECIFIED), always use **both** `not_in = 0` and `defined_only = true`:
 
 ```protobuf
 Status status = 1 [
-  (buf.validate.field).required = true,        // rejects zero/UNSPECIFIED
+  (buf.validate.field).enum.not_in = 0,        // rejects UNSPECIFIED
   (buf.validate.field).enum.defined_only = true // rejects unknown values
 ];
 ```
+
+Using only one leaves a gap: `defined_only` alone allows UNSPECIFIED; `not_in = 0` alone allows unknown values.
+Optional enum fields where zero means "no preference" should use only `defined_only = true`.
+See [protovalidate.md](protovalidate.md#enum-rules) for the full pattern table.
 
 ## Oneof
 
@@ -199,12 +206,15 @@ Use `oneof` when exactly one of several fields should be set:
 ```protobuf
 message SearchQuery {
   oneof query {
+    option (buf.validate.oneof).required = true;
     string text = 1;
     int64 id = 2;
     EmailFilter email = 3;
   }
 }
 ```
+
+**Validation:** Add `(buf.validate.oneof).required = true` for required choices. See [protovalidate.md](protovalidate.md#oneof-rules).
 
 **Behavior:** Setting any member clears all others. Cannot distinguish "not set" from "set to removed field" across versions.
 
@@ -252,6 +262,7 @@ Prefer standard types from `google/protobuf`:
 - Name as `MethodNameRequest` and `MethodNameResponse`
 - Each RPC should have unique request/response types (enables future evolution)
 - Avoid reusing request types across RPCs
+- Every request field should have protovalidate constraints—requests are the primary system boundary where validation matters most
 
 ```protobuf
 service UserService {
@@ -265,14 +276,14 @@ service UserService {
 
 ### Adding Fields
 
-Add new fields with the next available field number:
+Add new fields with the next available field number and appropriate protovalidate constraints:
 
 ```protobuf
 message User {
-  string id = 1;
-  string email = 2;
-  string name = 3;
-  string phone = 4;  // New field
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string email = 2 [(buf.validate.field).string.email = true];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string phone = 4;  // New field - add validation constraints
 }
 ```
 
@@ -357,21 +368,34 @@ message User {
 - Note error conditions on RPCs
 - Skip comments on request/response messages (names are self-documenting); document fields within them
 
+### Consistency
+
+- Pick one form of a term and use it everywhere ("shortname" vs "short name" — pick one)
+- Use "ID" not "id" or "Id" in comments
+- Watch article/vowel mismatches: "an Environment" not "a Environment"
+
+### Cross-Reference Consistency
+
+When the same identifier appears in multiple messages, all validation constraints must be identical.
+See [protovalidate.md](protovalidate.md#cross-reference-consistency) for examples.
+
 ## Common Patterns
 
-### Pagination
+### Pagination and List Requests
 
 ```protobuf
 message ListUsersRequest {
-  int32 page_size = 1;
-  string page_token = 2;
+  uint32 page_size = 1 [(buf.validate.field).uint32.lte = 250];
+  string page_token = 2 [(buf.validate.field).string.max_len = 4096];
 }
 
 message ListUsersResponse {
-  repeated User users = 1;
-  string next_page_token = 2;
+  string next_page_token = 1 [(buf.validate.field).string.max_len = 4096];
+  repeated User users = 2 [(buf.validate.field).repeated.max_items = 250];
 }
 ```
+
+See `assets/proto/example/v1/book_service.proto` for a complete example with ordering and filtering.
 
 ### Partial Updates with Field Masks
 
