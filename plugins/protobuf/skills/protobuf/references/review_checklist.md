@@ -10,11 +10,10 @@ A field without validation is a field that accepts anything.
 
 - [Enum Validation](#enum-validation)
 - [Oneof Validation](#oneof-validation)
-- [String Pattern Validation](#string-pattern-validation)
+- [String Validation](#string-validation)
 - [Cross-Reference Consistency](#cross-reference-consistency)
 - [Pagination Validation](#pagination-validation)
-- [Header and Metadata Fields](#header-and-metadata-fields)
-- [List Request Completeness](#list-request-completeness)
+- [List Requests](#list-requests)
 - [Reserved Statements](#reserved-statements)
 - [Documentation Quality](#documentation-quality)
 
@@ -76,23 +75,32 @@ message UserLookup {
 **Common mistake:** Omitting `required = true` on a lookup oneof.
 This allows clients to send a lookup with no value set, which is never valid.
 
-## String Pattern Validation
+## String Validation
 
-Name and identifier fields should have pattern constraints.
-Choose the right pattern for the field type.
+Prefer well-known standard constraints before reaching for `pattern`:
 
-| Field Type | Pattern | Example Values |
-|-----------|---------|----------------|
-| Lowercase name with hyphens | `^[a-z0-9][a-z0-9-]*[a-z0-9]$` | `my-source`, `order-api` |
-| Versioned label (dots, underscores, hyphens) | `^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$` | `v1.0.0-rc1`, `main` |
-| Programming identifier | `^[_a-zA-Z][_a-zA-Z0-9]*$` | `my_variable`, `userId` |
-| PascalCase identifier | `^[A-Za-z][A-Za-z0-9]*$` | `GetUser`, `ListOrders` |
+| Constraint | Use For |
+|-----------|---------|
+| `.string.uuid` | UUIDs |
+| `.string.email` | Email addresses |
+| `.string.uri` / `.string.uri_ref` | URIs |
+| `.string.hostname` | Hostnames |
+| `.string.ip` / `.string.ipv4` / `.string.ipv6` | IP addresses |
+| `.string.address` | Hostname or IP |
+| `.string.host_and_port` | Host:port pairs |
+
+When no well-known constraint fits, use `pattern` for name/identifier fields:
+
+| Field Type | Pattern |
+|-----------|---------|
+| Lowercase with hyphens | `^[a-z0-9][a-z0-9-]*[a-z0-9]$` |
+| Versioned label | `^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$` |
+| Programming identifier | `^[_a-zA-Z][_a-zA-Z0-9]*$` |
 
 **Review items:**
 
-- [ ] Name fields have a `pattern` constraint appropriate for the entity type
-- [ ] Consider whether `min_len` and `max_len` constraints are appropriate
-- [ ] Patterns match the documented naming rules for the entity type
+- [ ] String fields use well-known constraints where applicable before `pattern`
+- [ ] Name fields have appropriate length bounds (`min_len`, `max_len`)
 - [ ] Patterns are consistent with the character set the spec allows
 
 ## Cross-Reference Consistency
@@ -124,54 +132,14 @@ string page_token = 2 [(buf.validate.field).string.max_len = 4096];
 - [ ] Response includes `next_page_token` with the same `max_len`
 - [ ] Response repeated field has `max_items` matching the `page_size` upper bound
 
-## Header and Metadata Fields
-
-Key-value string fields without bounds are a common source of abuse.
-
-```protobuf
-message Header {
-  string key = 1 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).string.max_len = 256
-  ];
-  string value = 2 [(buf.validate.field).string.max_len = 8192];
-}
-```
+## List Requests
 
 **Review items:**
 
-- [ ] Header/metadata key and value fields have `max_len`
-- [ ] Unbounded `string` fields are intentionally unbounded, not accidentally so
-
-## List Request Completeness
-
-List RPCs should follow a consistent pattern across the API.
-
-**Review items:**
-
-- [ ] All List requests have pagination (page_size + page_token)
-- [ ] All List requests have an Order enum
-- [ ] Order enum includes both `CREATE_TIME_DESC/ASC` and `UPDATE_TIME_DESC/ASC` when the entity has both timestamps
-- [ ] Order enum values follow the `ORDER_*` naming pattern
-- [ ] Default order is documented
-- [ ] Useful entity-specific optional fields are present (e.g., by parent, by status)
-- [ ] Optional enum fields use `defined_only = true` only (zero value = "no preference")
-
-```protobuf
-message ListEntitiesRequest {
-  enum Order {
-    ORDER_UNSPECIFIED = 0;
-    ORDER_CREATE_TIME_DESC = 1;
-    ORDER_CREATE_TIME_ASC = 2;
-    ORDER_UPDATE_TIME_DESC = 3;
-    ORDER_UPDATE_TIME_ASC = 4;
-  }
-
-  uint32 page_size = 1 [(buf.validate.field).uint32.lte = 250];
-  string page_token = 2 [(buf.validate.field).string.max_len = 4096];
-  Order order = 3 [(buf.validate.field).enum.defined_only = true];
-}
-```
+- [ ] All List requests have pagination (`page_size` + `page_token`) with validation
+- [ ] Consider whether ordering and filtering are appropriate for the use case
+- [ ] Optional enum filter fields use `defined_only = true` only (zero value = "no preference")
+- [ ] Default behavior is documented
 
 ## Reserved Statements
 

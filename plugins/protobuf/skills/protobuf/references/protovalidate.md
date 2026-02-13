@@ -1,11 +1,7 @@
 # Protovalidate Reference
 
-Protovalidate is the standard way to add validation constraints to Protocol Buffer schemas.
-Every proto API should use protovalidate to define what valid data looks like directly in the schema.
-Without it, validation logic scatters across server implementations, becomes inconsistent between languages, and drifts out of sync with the schema over time.
-
-Protovalidate solves this by making the `.proto` file the single source of truth for both structure and constraints.
-Validation rules are declared as field annotations and enforced at runtime using generated code and CEL expressions.
+Protovalidate declares validation constraints directly in `.proto` files, making the schema the single source of truth for both structure and validation.
+Rules are field annotations enforced at runtime via generated code and CEL expressions.
 
 **Documentation:** [protovalidate.com](https://protovalidate.com)
 
@@ -18,7 +14,6 @@ Validation rules are declared as field annotations and enforced at runtime using
 - [Numeric Rules](#numeric-rules)
 - [Bytes Rules](#bytes-rules)
 - [Enum Rules](#enum-rules)
-- [Enum Validation Patterns](#enum-validation-patterns)
 - [Repeated Field Rules](#repeated-field-rules)
 - [Map Rules](#map-rules)
 - [Oneof Rules](#oneof-rules)
@@ -26,14 +21,13 @@ Validation rules are declared as field annotations and enforced at runtime using
 - [Duration Rules](#duration-rules)
 - [Custom CEL Rules](#custom-cel-rules)
 - [Common Patterns](#common-patterns)
-- [Cross-Reference Consistency](#cross-reference-consistency)
 - [Runtime Validation](#runtime-validation)
 
 ---
 
 ## Setup
 
-Every project using protobuf should add protovalidate as a dependency:
+Add protovalidate as a dependency:
 
 ```yaml
 # buf.yaml
@@ -44,7 +38,7 @@ deps:
   - buf.build/bufbuild/protovalidate
 ```
 
-Run `buf dep update`, then import in every proto file that defines messages:
+Run `buf dep update`, then import in proto files:
 
 ```protobuf
 import "buf/validate/validate.proto";
@@ -120,35 +114,16 @@ message Example {
 
 ## Common String Patterns
 
-Name and identifier fields should have `pattern` constraints that enforce naming rules at the schema level.
-A string field without validation is a string field that accepts anything—define what valid looks like.
+Prefer well-known format validators (`uuid`, `email`, `uri`, `hostname`, `ip`, `address`, `host_and_port`) before reaching for `pattern`.
+When no well-known constraint fits, use `pattern` for name/identifier fields:
 
-| Field Type | Pattern | Example Values |
-|-----------|---------|----------------|
-| Lowercase name with hyphens | `^[a-z0-9][a-z0-9-]*[a-z0-9]$` | `my-source`, `order-api` |
-| Versioned label (dots, underscores, hyphens) | `^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$` | `v1.0.0-rc1`, `main` |
-| Programming identifier | `^[_a-zA-Z][_a-zA-Z0-9]*$` | `my_variable`, `userId` |
-| PascalCase identifier | `^[A-Za-z][A-Za-z0-9]*$` | `GetUser`, `ListOrders` |
+| Field Type | Pattern |
+|-----------|---------|
+| Lowercase with hyphens | `^[a-z0-9][a-z0-9-]*[a-z0-9]$` |
+| Versioned label | `^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$` |
+| Programming identifier | `^[_a-zA-Z][_a-zA-Z0-9]*$` |
 
 Consider adding `min_len` and `max_len` constraints where appropriate.
-
-```protobuf
-// Lowercase name with hyphens
-string name = 1 [
-  (buf.validate.field).required = true,
-  (buf.validate.field).string.min_len = 2,
-  (buf.validate.field).string.max_len = 100,
-  (buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-];
-
-// Versioned label (allows dots, underscores, hyphens)
-string tag = 2 [
-  (buf.validate.field).string.pattern = "^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$"
-];
-
-// Variable/identifier name
-string var = 3 [(buf.validate.field).string.pattern = "^[_a-zA-Z][_a-zA-Z0-9]*$"];
-```
 
 ## Numeric Rules
 
@@ -235,48 +210,15 @@ message Resource {
 }
 ```
 
-## Enum Validation Patterns
+### Enum Validation Patterns
 
-Every enum field should have validation constraints.
-The right constraints depend on how the field is used, and getting this wrong is one of the most common proto validation mistakes.
+| Context | Constraints |
+|---------|-------------|
+| Required enum | `not_in = 0` + `defined_only = true` |
+| Optional enum (zero = "not set") | `defined_only = true` only |
+| Repeated enum items | `.repeated.items.enum.not_in = 0` + `.items.enum.defined_only = true` |
 
-| Context | Constraints | Rationale |
-|---------|-------------|-----------|
-| Required enum field | `not_in = 0` + `defined_only = true` | Rejects the zero value and unknown values |
-| Optional enum field (zero value = "not set") | `defined_only = true` only | Zero value means "not set" or "no preference" |
-| Repeated enum items | `.repeated.items.enum.not_in = 0` + `.items.enum.defined_only = true` | Each item must be meaningful |
-
-**Required enum fields** must reject both `UNSPECIFIED` (value 0) and unknown values.
-Using only `defined_only` allows `UNSPECIFIED` through.
-Using only `not_in = 0` allows unknown values like `99` through.
-Always use both together.
-
-```protobuf
-// Required: must be a known, non-UNSPECIFIED value
-Status status = 1 [
-  (buf.validate.field).enum.not_in = 0,
-  (buf.validate.field).enum.defined_only = true
-];
-```
-
-**Optional enum fields** where the zero value means "not set" or "no preference" should use only `defined_only`.
-This is common for enum fields in List requests where the zero value means "return all."
-
-```protobuf
-// Optional: UNSPECIFIED means "no preference"
-Status status_filter = 1 [(buf.validate.field).enum.defined_only = true];
-```
-
-**Repeated enum items** should each be meaningful.
-Apply `not_in` and `defined_only` on the items rule.
-
-```protobuf
-// Each status in the list must be valid and non-UNSPECIFIED
-repeated Status statuses = 1 [
-  (buf.validate.field).repeated.items.enum.not_in = 0,
-  (buf.validate.field).repeated.items.enum.defined_only = true
-];
-```
+Required fields need both: `defined_only` alone allows `UNSPECIFIED` through, `not_in = 0` alone allows unknown values through.
 
 ## Repeated Field Rules
 
@@ -322,34 +264,15 @@ message Config {
 
 ## Oneof Rules
 
-All oneofs representing a required choice should have `(buf.validate.oneof).required = true`.
-
-**When to use `required`:**
-
-- **Lookup messages** (id-or-name lookups): always required
-- **Mutually exclusive choices** (payment method, target type): always required
-- **Value variants** (string/int/bool): required unless intentionally optional
-
-**When to omit `required`:**
-
-- The oneof is intentionally optional (e.g., an optional field that can be unset)
+Use `(buf.validate.oneof).required = true` when the oneof represents a required choice (lookups, mutually exclusive options).
+Omit `required` only when the oneof is intentionally optional.
 
 ```protobuf
-// Lookup by ID or email - always required
 message UserLookup {
   oneof value {
     option (buf.validate.oneof).required = true;
     string id = 1 [(buf.validate.field).string.uuid = true];
     string email = 2 [(buf.validate.field).string.email = true];
-  }
-}
-
-// Mutually exclusive choice - always required
-message PaymentMethod {
-  oneof method {
-    option (buf.validate.oneof).required = true;
-    CreditCard credit_card = 1;
-    BankAccount bank_account = 2;
   }
 }
 ```
@@ -486,8 +409,6 @@ message SearchFilters {
 
 ## CEL Extension Functions
 
-Protovalidate adds these functions beyond standard CEL:
-
 | Function | Description |
 |----------|-------------|
 | `isNan()`, `isInf()` | Test for NaN or infinity |
@@ -515,115 +436,19 @@ message GetUsersRequest {
 
 ### Pagination
 
-Always validate both `page_size` and `page_token`.
-Use `uint32` for `page_size` with an upper bound.
-The response `next_page_token` and repeated field should have matching constraints.
-
 ```protobuf
-message ListEntitiesRequest {
-  // The maximum number of items to return.
-  //
-  // The default value is 10.
+message ListRequest {
   uint32 page_size = 1 [(buf.validate.field).uint32.lte = 250];
-  // The page to start from.
-  //
-  // If empty, the first page is returned.
   string page_token = 2 [(buf.validate.field).string.max_len = 4096];
 }
-
-message ListEntitiesResponse {
-  // The next page token.
-  //
-  // If empty, there are no more pages.
-  string next_page_token = 1 [(buf.validate.field).string.max_len = 4096];
-  // The entities.
-  repeated Entity entities = 2 [(buf.validate.field).repeated.max_items = 250];
-}
 ```
 
-### Create Request
+See `assets/proto/example/v1/book_service.proto` for a complete List example with response, ordering, and filtering.
 
-```protobuf
-message CreateUsersRequest {
-  message Value {
-    string email = 1 [
-      (buf.validate.field).required = true,
-      (buf.validate.field).string.email = true
-    ];
-    string name = 2 [
-      (buf.validate.field).required = true,
-      (buf.validate.field).string.min_len = 1
-    ];
-  }
-
-  repeated Value values = 1 [
-    (buf.validate.field).repeated.min_items = 1,
-    (buf.validate.field).repeated.max_items = 250
-  ];
-}
-```
-
-### Update Request with Optional Fields
-
-```protobuf
-message UpdateUserRequest {
-  UserRef user_ref = 1 [(buf.validate.field).required = true];
-
-  // Optional fields validate only when set
-  optional string name = 2 [(buf.validate.field).string.min_len = 1];
-  optional string bio = 3 [(buf.validate.field).string.max_len = 500];
-}
-```
-
-### Header and Metadata Fields
-
-Key-value string fields without bounds are a common source of abuse and a frequent security issue.
-Always add `max_len` constraints to header keys and values.
-
-```protobuf
-message Header {
-  string key = 1 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).string.max_len = 256
-  ];
-  string value = 2 [(buf.validate.field).string.max_len = 8192];
-}
-```
-
-## Cross-Reference Consistency
+### Cross-Reference Consistency
 
 When the same identifier appears in multiple messages, all validation constraints must be identical.
-
-For example, if `Project.name` has `max_len = 64` and a specific `pattern`, then every other field that references a project name must use the same constraints.
-
-```protobuf
-// Project entity
-message Project {
-  string name = 1 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).string.min_len = 2,
-    (buf.validate.field).string.max_len = 64,
-    (buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-  ];
-}
-
-// Compound name - project field must match Project.name constraints
-message TaskName {
-  string project = 1 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).string.min_len = 2,
-    (buf.validate.field).string.max_len = 64,  // Must match Project.name
-    (buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-  ];
-  string task = 2 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).string.min_len = 2,
-    (buf.validate.field).string.max_len = 64
-  ];
-}
-```
-
-A mismatch allows one message to accept values that another message would reject, creating inconsistencies that surface as confusing runtime errors.
+See [best_practices.md](best_practices.md#cross-reference-consistency) for details and examples.
 
 ## Predefined Constraint Rules
 

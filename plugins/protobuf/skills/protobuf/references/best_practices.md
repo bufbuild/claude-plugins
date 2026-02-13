@@ -3,9 +3,7 @@
 Universal best practices for designing `.proto` files.
 For buf CLI configuration, see [buf_toolchain.md](buf_toolchain.md).
 
-**Validation:** Use [protovalidate](protovalidate.md) on every field.
-Protobuf defines structure; protovalidate defines what valid data looks like.
-Together they make the `.proto` file the single source of truth for your API contract.
+**Validation:** Use [protovalidate](protovalidate.md) on every field—it makes the schema the single source of truth for both structure and constraints.
 
 ## Contents
 
@@ -197,13 +195,9 @@ Status status = 1 [
 ];
 ```
 
-Using only `defined_only` allows `UNSPECIFIED` through.
-Using only `not_in = 0` allows unknown enum values through.
-
-**Exception:** Optional enum fields where the zero value means "not set" or "no preference" should use only `defined_only = true`.
-This is common for enum fields in List requests where the zero value means "return all."
-
-See [protovalidate.md](protovalidate.md#enum-validation-patterns) for the full pattern table.
+Using only one leaves a gap: `defined_only` alone allows UNSPECIFIED; `not_in = 0` alone allows unknown values.
+Optional enum fields where zero means "no preference" should use only `defined_only = true`.
+See [protovalidate.md](protovalidate.md#enum-rules) for the full pattern table.
 
 ## Oneof
 
@@ -220,8 +214,7 @@ message SearchQuery {
 }
 ```
 
-**Validation:** If the oneof represents a required choice (lookups, mutually exclusive options), always add `(buf.validate.oneof).required = true`.
-See [protovalidate.md](protovalidate.md#oneof-rules) for when to use `required` vs. omit it.
+**Validation:** Add `(buf.validate.oneof).required = true` for required choices. See [protovalidate.md](protovalidate.md#oneof-rules).
 
 **Behavior:** Setting any member clears all others. Cannot distinguish "not set" from "set to removed field" across versions.
 
@@ -375,27 +368,15 @@ message User {
 - Note error conditions on RPCs
 - Skip comments on request/response messages (names are self-documenting); document fields within them
 
-### Terminology Consistency
+### Consistency
 
-Pick one form of a term and use it everywhere.
-Mixed terminology confuses both users and implementers.
-
-Common examples:
-- "shortname" vs "short name" — pick one
-- "ID" vs "id" vs "Id" in comments — use "ID"
-- Entity names in comments should be capitalized consistently ("Source" not "source" when referring to the entity)
-
-### Grammar
-
-Watch for article/vowel mismatches, especially with entity names:
-- "an Environment" not "a Environment"
-- "an Image" not "a Image"
-- "a Source" not "an Source"
+- Pick one form of a term and use it everywhere ("shortname" vs "short name" — pick one)
+- Use "ID" not "id" or "Id" in comments
+- Watch article/vowel mismatches: "an Environment" not "a Environment"
 
 ### Cross-Reference Consistency
 
-When the same identifier appears in multiple messages, all validation constraints (`max_len`, `min_len`, `pattern`) must be identical.
-For example, if `Project.name` allows 64 characters, then `TaskName.project` (which references the same project name) must also allow exactly 64 characters.
+When the same identifier appears in multiple messages, all validation constraints must be identical.
 See [protovalidate.md](protovalidate.md#cross-reference-consistency) for examples.
 
 ## Common Patterns
@@ -404,21 +385,8 @@ See [protovalidate.md](protovalidate.md#cross-reference-consistency) for example
 
 ```protobuf
 message ListUsersRequest {
-  // Nested Order enum scoped to this request.
-  enum Order {
-    ORDER_UNSPECIFIED = 0;
-    ORDER_CREATE_TIME_DESC = 1;
-    ORDER_CREATE_TIME_ASC = 2;
-    ORDER_UPDATE_TIME_DESC = 3;
-    ORDER_UPDATE_TIME_ASC = 4;
-  }
-
   uint32 page_size = 1 [(buf.validate.field).uint32.lte = 250];
   string page_token = 2 [(buf.validate.field).string.max_len = 4096];
-  // The order to return results.
-  //
-  // If not specified, defaults to ORDER_CREATE_TIME_DESC.
-  Order order = 3 [(buf.validate.field).enum.defined_only = true];
 }
 
 message ListUsersResponse {
@@ -426,6 +394,8 @@ message ListUsersResponse {
   repeated User users = 2 [(buf.validate.field).repeated.max_items = 250];
 }
 ```
+
+See `assets/proto/example/v1/book_service.proto` for a complete example with ordering and filtering.
 
 ### Partial Updates with Field Masks
 
