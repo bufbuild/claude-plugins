@@ -33,8 +33,9 @@ If none exists, ask the user what style should be used or an existing library to
 
 ### 2. Write Proto Code
 
-- Apply universal best practices from [best_practices.md](references/best_practices.md):
-- For service templates, see [assets/](assets/).
+- Apply universal best practices from [best_practices.md](references/best_practices.md)
+- Add [protovalidate](references/protovalidate.md) constraints to every field—this is not optional for production APIs
+- For service templates, see [assets/](assets/)
 
 ### 3. Verify Changes
 
@@ -59,6 +60,7 @@ Fix all errors before considering the change complete.
 | buf CLI, buf.yaml, buf.gen.yaml | [buf_toolchain.md](references/buf_toolchain.md) |
 | Migrating from protoc | [migration.md](references/migration.md) |
 | Lint errors, common issues | [troubleshooting.md](references/troubleshooting.md) |
+| Proto API review checklist | [review_checklist.md](references/review_checklist.md) |
 
 ## Project Setup
 
@@ -76,7 +78,8 @@ Fix all errors before considering the change complete.
    ```
 
 2. Use `assets/buf.yaml` as starting point
-3. Use `assets/buf.gen.*.yaml` for code generation config
+3. Add `buf.build/bufbuild/protovalidate` as a dependency in `buf.yaml` and run `buf dep update`
+4. Use `assets/buf.gen.*.yaml` for code generation config
 
 ### Code Generation Templates
 
@@ -102,7 +105,7 @@ Located in `assets/proto/example/v1/`:
 ### Add a new field
 
 1. Use next sequential field number
-2. Add appropriate semantic validation
+2. Add [protovalidate](references/protovalidate.md) constraints: every field should have validation appropriate to its type (format validators, length bounds, numeric ranges, enum constraints, etc.)
 3. Document the field
 4. Run `buf format -w && buf lint`
 
@@ -115,17 +118,24 @@ Located in `assets/proto/example/v1/`:
    ```
 2. Run `buf breaking --against '.git#branch=main'` to verify
 
-### Add semantic validation
+### Add protovalidate constraints
 
-See [protovalidate.md](references/protovalidate.md) for constraint patterns:
-- Required fields: `(buf.validate.field).required = true`
-- String formats: `.string.uuid`, `.string.email`, `.string.uri`
-- Numeric bounds: `.int32.gt`, `.uint32.lte`
+Every field in a production API should have appropriate validation.
+See [protovalidate.md](references/protovalidate.md) for the full reference.
+
+Common constraints:
+- String formats: `.string.uuid`, `.string.email`, `.string.uri`, `.string.pattern`
+- String bounds: `.string.min_len`, `.string.max_len`
+- Numeric bounds: `.int32.gte`, `.uint32.lte`
+- Enum validation: `.enum.defined_only`, `.enum.not_in = 0`
 - Repeated bounds: `.repeated.min_items`, `.repeated.max_items`
+- Required fields: `(buf.validate.field).required = true`
+- Oneof required: `(buf.validate.oneof).required = true`
 
 ## Verification Checklist
 
 After making changes:
+- [ ] Every field has appropriate protovalidate constraints
 - [ ] `buf format -w` (apply formatting)
 - [ ] `buf lint` (check style rules)
 - [ ] `buf breaking --against '.git#branch=main'` (if modifying existing schemas)

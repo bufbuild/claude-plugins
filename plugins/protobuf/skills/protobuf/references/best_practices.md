@@ -3,6 +3,10 @@
 Universal best practices for designing `.proto` files.
 For buf CLI configuration, see [buf_toolchain.md](buf_toolchain.md).
 
+**Validation:** Use [protovalidate](protovalidate.md) on every field.
+Protobuf defines structure; protovalidate defines what valid data looks like.
+Together they make the `.proto` file the single source of truth for your API contract.
+
 ## Contents
 
 - [File Structure](#file-structure)
@@ -76,6 +80,7 @@ package acme.user.v1;
 - Use `snake_case`: `user_id`, `created_at`
 - Avoid abbreviations: `message` not `msg`
 - Pluralize repeated fields: `repeated User users`
+- Add [protovalidate](protovalidate.md) constraints to every field—format validators, length/range bounds, enum constraints, and required markers are all part of the field definition
 
 ### Nesting
 
@@ -183,14 +188,22 @@ Avoid grouping comments above multiple values; comments only attach to the first
 
 ### Required Enum Fields
 
-For enum fields that must have a meaningful value (not UNSPECIFIED), use both constraints:
+For enum fields that must have a meaningful value (not UNSPECIFIED), always use **both** `not_in = 0` and `defined_only = true`:
 
 ```protobuf
 Status status = 1 [
-  (buf.validate.field).required = true,        // rejects zero/UNSPECIFIED
+  (buf.validate.field).enum.not_in = 0,        // rejects UNSPECIFIED
   (buf.validate.field).enum.defined_only = true // rejects unknown values
 ];
 ```
+
+Using only `defined_only` allows `UNSPECIFIED` through.
+Using only `not_in = 0` allows unknown enum values through.
+
+**Exception:** Optional enum fields where the zero value means "not set" or "no preference" should use only `defined_only = true`.
+This is common for enum fields in List requests where the zero value means "return all."
+
+See [protovalidate.md](protovalidate.md#enum-validation-patterns) for the full pattern table.
 
 ## Oneof
 
@@ -199,12 +212,16 @@ Use `oneof` when exactly one of several fields should be set:
 ```protobuf
 message SearchQuery {
   oneof query {
+    option (buf.validate.oneof).required = true;
     string text = 1;
     int64 id = 2;
     EmailFilter email = 3;
   }
 }
 ```
+
+**Validation:** If the oneof represents a required choice (lookups, mutually exclusive options), always add `(buf.validate.oneof).required = true`.
+See [protovalidate.md](protovalidate.md#oneof-rules) for when to use `required` vs. omit it.
 
 **Behavior:** Setting any member clears all others. Cannot distinguish "not set" from "set to removed field" across versions.
 
@@ -252,6 +269,7 @@ Prefer standard types from `google/protobuf`:
 - Name as `MethodNameRequest` and `MethodNameResponse`
 - Each RPC should have unique request/response types (enables future evolution)
 - Avoid reusing request types across RPCs
+- Every request field should have protovalidate constraints—requests are the primary system boundary where validation matters most
 
 ```protobuf
 service UserService {
@@ -265,14 +283,14 @@ service UserService {
 
 ### Adding Fields
 
-Add new fields with the next available field number:
+Add new fields with the next available field number and appropriate protovalidate constraints:
 
 ```protobuf
 message User {
-  string id = 1;
-  string email = 2;
-  string name = 3;
-  string phone = 4;  // New field
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string email = 2 [(buf.validate.field).string.email = true];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string phone = 4;  // New field - add validation constraints
 }
 ```
 
@@ -357,19 +375,55 @@ message User {
 - Note error conditions on RPCs
 - Skip comments on request/response messages (names are self-documenting); document fields within them
 
+### Terminology Consistency
+
+Pick one form of a term and use it everywhere.
+Mixed terminology confuses both users and implementers.
+
+Common examples:
+- "shortname" vs "short name" — pick one
+- "ID" vs "id" vs "Id" in comments — use "ID"
+- Entity names in comments should be capitalized consistently ("Source" not "source" when referring to the entity)
+
+### Grammar
+
+Watch for article/vowel mismatches, especially with entity names:
+- "an Environment" not "a Environment"
+- "an Image" not "a Image"
+- "a Source" not "an Source"
+
+### Cross-Reference Consistency
+
+When the same identifier appears in multiple messages, all validation constraints (`max_len`, `min_len`, `pattern`) must be identical.
+For example, if `Project.name` allows 64 characters, then `TaskName.project` (which references the same project name) must also allow exactly 64 characters.
+See [protovalidate.md](protovalidate.md#cross-reference-consistency) for examples.
+
 ## Common Patterns
 
-### Pagination
+### Pagination and List Requests
 
 ```protobuf
 message ListUsersRequest {
-  int32 page_size = 1;
-  string page_token = 2;
+  // Nested Order enum scoped to this request.
+  enum Order {
+    ORDER_UNSPECIFIED = 0;
+    ORDER_CREATE_TIME_DESC = 1;
+    ORDER_CREATE_TIME_ASC = 2;
+    ORDER_UPDATE_TIME_DESC = 3;
+    ORDER_UPDATE_TIME_ASC = 4;
+  }
+
+  uint32 page_size = 1 [(buf.validate.field).uint32.lte = 250];
+  string page_token = 2 [(buf.validate.field).string.max_len = 4096];
+  // The order to return results.
+  //
+  // If not specified, defaults to ORDER_CREATE_TIME_DESC.
+  Order order = 3 [(buf.validate.field).enum.defined_only = true];
 }
 
 message ListUsersResponse {
-  repeated User users = 1;
-  string next_page_token = 2;
+  string next_page_token = 1 [(buf.validate.field).string.max_len = 4096];
+  repeated User users = 2 [(buf.validate.field).repeated.max_items = 250];
 }
 ```
 
