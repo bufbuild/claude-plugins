@@ -48,5 +48,4 @@ Each skill follows the [Agent Skills](https://agentskills.io) open standard:
 ## Code Style
 
 - YAML files: 2-space indent
-- Markdown: One sentence per line (improves diffs)
 - Proto examples in assets/: Must pass `buf lint` and `buf format`
