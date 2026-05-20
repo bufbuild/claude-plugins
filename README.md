@@ -2,7 +2,7 @@
 
 # Buf Plugins for Claude Code
 
-[![License](https://img.shields.io/github/license/bufbuild/claude-plugins?color=blue)][license]
+[![License](https://img.shields.io/github/license/bufbuild/claude-plugins?color=blue&v=1)][license]
 [![Slack](https://img.shields.io/badge/Slack-Buf-%23e01563)][slack]
 
 Official [Claude Code][claude-code] plugins from [Buf][buf] for Protocol Buffers, Connect, and BSR development.
