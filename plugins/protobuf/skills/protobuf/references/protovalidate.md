@@ -1,7 +1,7 @@
 # Protovalidate Reference
 
 Protovalidate declares validation constraints directly in `.proto` files, making the schema the single source of truth for both structure and validation.
-Rules are field annotations enforced at runtime via generated code and CEL expressions.
+Rules are annotations on fields, messages, and oneofs, enforced at runtime by a protovalidate library that evaluates them as CEL expressions.
 
 **Documentation:** [protovalidate.com](https://protovalidate.com)
 
@@ -19,8 +19,13 @@ Rules are field annotations enforced at runtime via generated code and CEL expre
 - [Oneof Rules](#oneof-rules)
 - [Timestamp Rules](#timestamp-rules)
 - [Duration Rules](#duration-rules)
+- [FieldMask Rules](#fieldmask-rules)
+- [Any Rules](#any-rules)
+- [Ignore Rules](#ignore-rules)
 - [Custom CEL Rules](#custom-cel-rules)
+- [CEL Extension Functions](#cel-extension-functions)
 - [Common Patterns](#common-patterns)
+- [Predefined Constraint Rules](#predefined-constraint-rules)
 - [Runtime Validation](#runtime-validation)
 
 ---
@@ -414,7 +419,7 @@ message SearchFilters {
 | `isNan()`, `isInf()` | Test for NaN or infinity |
 | `isEmail()`, `isHostname()`, `isUri()`, `isUriRef()` | Format validation |
 | `isIp()`, `isIp(version)`, `isIpPrefix()` | IP/CIDR validation |
-| `isHostAndPort()` | Host:port validation |
+| `isHostAndPort(port_required)` | Host:port validation |
 | `unique()` | Check list items are unique |
 | `this` | Current value being validated |
 | `now` | Current timestamp |
@@ -479,10 +484,9 @@ Add validation calls at your service boundaries—typically in RPC handlers or m
 
 **Go:**
 ```go
-import protovalidate "github.com/bufbuild/protovalidate-go"
+import "buf.build/go/protovalidate"
 
-validator, err := protovalidate.New()
-if err := validator.Validate(msg); err != nil {
+if err := protovalidate.Validate(msg); err != nil {
     // Handle validation error
 }
 ```
@@ -492,7 +496,10 @@ if err := validator.Validate(msg); err != nil {
 import { createValidator } from "@bufbuild/protovalidate";
 
 const validator = createValidator();
-const violations = validator.validate(msg);
+const result = validator.validate(UserSchema, msg);
+if (result.kind !== "valid") {
+  // Handle result.error
+}
 ```
 
 For Python, Java, and other languages, see [protovalidate.com](https://protovalidate.com).
