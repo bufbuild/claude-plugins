@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# This file only holds CodeRabbit behavior and public-repo safety pins.
+inheritance: true
+
+reviews:
+  in_progress_fortune: false
+  auto_apply_labels: false # pinned: "Emergency Bypass Review" label auto-approves PRs
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_usernames:
+      - "dependabot[bot]"
+  slop_detection:
+    enabled: true
+    label: "slop"
+  finishing_touches:
+    docstrings:
+      enabled: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    custom_checks:
+      - name: "Skill size and structure"
+        mode: "warning"
+        instructions: |
+          SKILL.md files must stay under 500 lines; detail belongs in references/.
+          Proto files under assets/ must be valid, buf-lint-clean examples.
+          Bump plugin.json version when skill content changes.
+
+chat:
+  allow_non_org_members: false
+  integrations:
+    linear:
+      usage: disabled
+
+# Pinned so central config changes can't leak private context into public PRs
+knowledge_base:
+  code_guidelines:
+    enabled: true
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+  linear:
+    usage: disabled
+  mcp:
+    usage: disabled
+  automatic_linking_mode: disabled
+  linked_repositories: []
