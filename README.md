@@ -40,6 +40,20 @@ Triggers on: `*.proto`, `buf.yaml`, `buf.*.yaml`, `buf.gen.yaml`, `buf.gen.*.yam
 - [Protovalidate][protovalidate]
 - [Connect RPC][connectrpc]
 
+## Evals and production telemetry
+
+The `evals/protobuf/` directory contains a small human-review eval set for
+schema evolution, Protovalidate design, and Buf configuration review. The cases
+are harness-neutral so plugin behavior can be checked before release in Claude
+Code or another agent workspace.
+
+If you publish this plugin through Telvine, keep runtime telemetry metadata-only:
+`skill.invocation.start`, `skill.invocation.end`, and `skill.invocation.error`
+for skill behavior, plus `plugin.component.invoked` and
+`plugin.component.error` for non-skill components. Do not emit private schemas,
+repository contents, generated code, connector payloads, tool arguments, or
+model outputs.
+
 ## Community
 
 For help and discussion around Protobuf, best practices, and more, join us on [Slack][slack].
